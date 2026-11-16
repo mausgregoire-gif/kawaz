@@ -34,6 +34,12 @@
   .merci { text-align:center; padding:12px 0; }
   .merci h2 { margin:0 0 8px; }
   .hp { position:absolute; left:-9999px; }
+  .infos { display:grid; gap:10px; margin:0 0 20px; }
+  .infos p { margin:0; padding:12px 14px; background:#fff; border-radius:10px; font-size:.92rem; box-shadow:0 1px 4px rgba(74,44,26,.06); }
+  .iban { font-family:ui-monospace,Menlo,monospace; font-weight:700; user-select:all; }
+  .virement { margin-top:12px; line-height:1.7; padding:14px; background:var(--creme); border-radius:10px; text-align:left; font-size:.95rem; }
+  .copy { margin-left:6px; padding:3px 9px; border:1px solid #ddd2c4; border-radius:6px; background:#fff; font:inherit; font-size:.8rem; cursor:pointer; color:var(--brun); }
+  .mail { display:inline-block; margin-top:10px; padding:10px 16px; border-radius:10px; background:var(--accent); color:#fff; font-weight:700; text-decoration:none; }
   footer { margin-top:20px; text-align:center; font-size:.8rem; color:var(--gris); }
 </style>
 </head>
@@ -42,9 +48,12 @@
   <h1>☕ Commande café Kawaz</h1>
   <p class="intro">
     Café des communautés zapatistes du Chiapas, importé par un collectif bruxellois de bénévoles et torréfié près de Liège.
-    <strong>10 € le paquet de 500 g</strong>. Commande groupée par Grégoire, à rembourser à la livraison.
+    <strong>10 € le paquet de 500 g</strong>. Commande groupée par Grégoire.
     <br><a href="https://kawaz.be" target="_blank" rel="noopener">Plus d'infos sur Kawaz</a>
   </p>
+  <div class="infos">
+    <p>📍 <strong>Retrait au Capitane Shop</strong><br>4 rue Jules Bouillon, 1050 Ixelles<br>à partir du mercredi 18 novembre</p>
+  </div>
 
   <div class="card" id="card">
     <form id="form" novalidate>
@@ -75,11 +84,18 @@
       <input type="text" name="_honey" class="hp" tabindex="-1" autocomplete="off">
 
       <div class="total"><span>Total</span><span id="total">0 €</span></div>
+      <div class="virement">
+        💶 <strong>Paiement par virement</strong><br>
+        Grégoire Maus · <span class="iban">BE50 9734 6652 9618</span>
+        <button type="button" class="copy" onclick="navigator.clipboard.writeText('BE50973466529618');this.textContent='Copié ✓'">Copier</button><br>
+        Communication : <strong id="com">« nombre x 500g Café Kawaz + ton nom »</strong>
+        <button type="button" class="copy" onclick="navigator.clipboard.writeText(communication());this.textContent='Copié ✓'">Copier</button>
+      </div>
       <button type="submit" class="submit" id="btn">Envoyer ma commande</button>
       <p class="msg" id="msg" role="status"></p>
     </form>
   </div>
-  <footer>Kawaz BruxxeL · collectif bénévole</footer>
+  <footer>Commande groupée organisée par Grégoire · page non officielle</footer>
 </main>
 
 <script>
@@ -96,7 +112,15 @@
     $("grains").textContent = qty.grains;
     $("moulu").textContent = qty.moulu;
     $("total").textContent = (qty.grains + qty.moulu) * PRIX + " €";
+    $("com").textContent = "« " + communication() + " »";
   }
+
+  function communication() {
+    const n = qty.grains + qty.moulu;
+    const nom = ($("nom") ? $("nom").value.trim() : window._nom) || "ton nom";
+    return `${n || "nombre"} x 500g Café Kawaz ${nom}`;
+  }
+  $("nom").addEventListener("input", refresh);
 
   document.querySelectorAll(".stepper").forEach(s => {
     s.addEventListener("click", e => {
@@ -133,20 +157,41 @@
     msg.textContent = "Envoi…";
     try {
       const r = await fetch("https://formsubmit.co/ajax/" + EMAIL, {
+        signal: AbortSignal.timeout(15000),
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(data)
       });
       const j = await r.json();
       if (!r.ok || String(j.success) !== "true") throw new Error(j.message || "Erreur");
-      $("card").innerHTML = `<div class="merci"><h2>Merci ${nom.replace(/[<>&"]/g, "")} ! ☕</h2>
+      window._nom = nom;
+      const safe = nom.replace(/[<>&"]/g, "");
+      $("card").innerHTML = `<div class="merci"><h2>Merci ${safe} ! ☕</h2>
         <p>Ta commande de <strong>${n} paquet${n > 1 ? "s" : ""}</strong>
         (${qty.grains} en grains, ${qty.moulu} moulu${qty.moulu > 1 ? "s" : ""})
-        est bien notée.<br>Total : <strong>${n * PRIX} €</strong>, à rembourser à la livraison.</p></div>`;
+        est bien notée.</p>
+        <div class="virement">
+          💶 Merci de virer <strong>${n * PRIX} €</strong> à<br>
+          <strong>Grégoire Maus</strong><br>
+          <span class="iban">BE50 9734 6652 9618</span>
+          <button type="button" class="copy" onclick="navigator.clipboard.writeText('BE50973466529618');this.textContent='Copié ✓'">Copier</button><br>
+          Communication : <strong>${communication().replace(/[<>&"]/g, "")}</strong>
+          <button type="button" class="copy" onclick="navigator.clipboard.writeText(communication());this.textContent='Copié ✓'">Copier</button><br><br>
+          📍 À retirer au <strong>Capitane Shop</strong>, 4 rue Jules Bouillon, 1050 Ixelles, à partir du mercredi 18 novembre.
+        </div></div>`;
     } catch (err) {
       $("btn").disabled = false;
+      const body = [
+        "Nom : " + nom,
+        "Paquets en grains : " + qty.grains,
+        "Paquets moulus : " + qty.moulu,
+        "Total : " + n * PRIX + " €",
+        "Remarque : " + ($("remarque").value.trim() || "—"),
+        "Communication du virement : " + communication()
+      ].join("\n");
+      const href = "mailto:" + EMAIL + "?subject=" + encodeURIComponent(data._subject) + "&body=" + encodeURIComponent(body);
       msg.className = "msg err";
-      msg.textContent = "Oups, l'envoi a échoué. Réessaie ou envoie ta commande par WhatsApp.";
+      msg.innerHTML = "Le service d'envoi ne répond pas. Envoie ta commande par mail, elle est déjà rédigée :<br><a class=\"mail\" href=\"" + href + "\">📧 Envoyer ma commande par mail</a>";
     }
   });
 
